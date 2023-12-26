@@ -1,0 +1,23 @@
+{
+  "OutputFoldersPerTargetSystem": {
+    "Local Machine": [
+      "build\\debug\\build",
+      "build\\debug\\install",
+      "build\\release\\build",
+      "build\\release\\install"
+    ]
+  },
+  "ExpandedNodes": [
+    "",
+    "\\build",
+    "\\build\\debug",
+    "\\cmake",
+    "\\Core",
+    "\\Core\\Inc",
+    "\\Core\\Src",
+    "\\Utilities",
+    "\\Utilities\\lcd"
+  ],
+  "SelectedNode": "\\CMakeLists.txt",
+  "PreviewInSolutionExplorer": false
+}
