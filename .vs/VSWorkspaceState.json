@@ -9,15 +9,10 @@
   },
   "ExpandedNodes": [
     "",
-    "\\build",
-    "\\build\\debug",
-    "\\cmake",
-    "\\Core",
     "\\Core\\Inc",
     "\\Core\\Src",
-    "\\Utilities",
     "\\Utilities\\lcd"
   ],
-  "SelectedNode": "\\CMakeLists.txt",
+  "SelectedNode": "\\.cproject",
   "PreviewInSolutionExplorer": false
 }

@@ -6,7 +6,9 @@
  */
 #include "tetris.h"
 
-uint32_t colors[8] = {
+extern RNG_HandleTypeDef rng;
+
+const uint32_t colors[8] = {
         UTIL_LCD_COLOR_DARKGRAY,
         UTIL_LCD_COLOR_CYAN,		//I
         UTIL_LCD_COLOR_YELLOW,		//O
@@ -16,7 +18,7 @@ uint32_t colors[8] = {
         UTIL_LCD_COLOR_RED,			//Z
         UTIL_LCD_COLOR_ORANGE };    //L
 
-uint16_t tetriminos[8][4] = {
+const uint16_t tetriminos[8][4] = {
         { 0x0000, 0x0000, 0x0000, 0x0000 },
         { 0x0F00, 0x2222, 0x00F0, 0x4444 },   //I
         { 0xCC00, 0xCC00, 0xCC00, 0xCC00 },   //O
@@ -35,11 +37,15 @@ button_t buttons[N_BTN] = {
     { LCD_DEFAULT_WIDTH - X_BTN_PADDING - X_BTN, LCD_DEFAULT_HEIGHT - Y_BTN_PADDING * 3 - Y_BTN * 3, PLAY_PAUSE, 0, { {5, 6}, {1, 2}, 1} }
 };
 
+const uint8_t level_speed[] = { 72, 64, 58, 50, 44, 36, 30, 22, 14, 10, 8, 8, 8, 6, 6, 6, 4, 4, 4, 2 };
+const uint16_t lines_score[] = { 0, 100, 300, 500, 800 };
+
 uint8_t playing_field[Y_DIM][X_DIM];
 tetrimino_t tetrimino = { 0 };
+uint32_t lines_cleared = 0;
 uint32_t score = 0;
 uint32_t time = 0;
-uint32_t level = 0;
+uint32_t level = 1;
 bool playing = false;
 bool game_over = false;
 
@@ -87,9 +93,10 @@ static int8_t get_new_y_position(uint8_t type) {
 /// </summary>
 /// <param name="tetrimino"></param>
 static void create_tetrimino(tetrimino_t *tetrimino) {
-    static unsigned int seed;
+    uint32_t type;
+    HAL_RNG_GenerateRandomNumber(&rng, &type);
     tetrimino->dir = 0;
-    tetrimino->type = 1 + rand_r(&seed) % 7;
+    tetrimino->type = 1 + type % 7;
     tetrimino->x = get_new_x_position(tetrimino->type);
     tetrimino->y = get_new_y_position(tetrimino->type);
 }
@@ -104,6 +111,7 @@ static void draw_game_over(void) {
         UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_DARKGRAY);
         UTIL_LCD_FillRect(X_BANNER_START, Y_BANNER_START, X_BANNER_DIM, Y_BANNER_DIM, UTIL_LCD_COLOR_DARKGRAY);
         UTIL_LCD_DisplayStringAt(0, Y_BANNER_START + Y_BANNER_DIM / 2, (uint8_t*)"Game over", CENTER_MODE);
+        UTIL_LCD_SetFont(&Font12);
     }
 }
 
@@ -242,10 +250,13 @@ static bool valid(uint8_t type, uint8_t dir, int8_t x, int8_t y) {
 /// <param name="x">position of the left bottom corner</param>
 /// <param name="y">position of the left bottom corner</param>
 static void place_on_playing_field(uint8_t type, uint8_t dir, int8_t x, int8_t y) {
+    uint32_t drop_count = 0;
     while (valid(type, dir, x, y - 1)) {
         --y;
+        ++drop_count;
     }
 
+    score += 2 * drop_count;
     const uint16_t tetrimino = tetriminos[type][dir];
     uint16_t mask = 1;
     for (int32_t i = 0; i < 4; ++i) {
@@ -295,18 +306,17 @@ void clear_lines(void) {
     }
 
     //Calculate score
-    uint32_t multiplier = 1;
+    uint32_t count = 0;
     for (size_t i = 0; i < Y_DIM; ++i) {
         if (full[i]) {
-            // TODO: better score calculation
-            score += 100 * multiplier;
-            multiplier <<= 1;
+            ++count;
+            ++lines_cleared;
         } else {
-            multiplier = 1;
+            score += (level + 1) * lines_score[count];
+            count = 0;
         }
     }
-
-    level = MIN(MAX_LEVEL, score / 2000);
+    level = MIN(lines_cleared / LEVEL_THRESH, MAX_LEVEL);
 }
 
 /// <summary>
@@ -351,7 +361,7 @@ void perform_action(const action_t action) {
             }
             case TICK: {
                 ++time;
-                if (time % (MAX_LEVEL + 1 - level) == 0) {
+                if ((time % level_speed[level]) == 0) {
                     if (valid(tetrimino.type, tetrimino.dir, tetrimino.x, tetrimino.y - 1)) {
                         --tetrimino.y;
                     } else {
@@ -378,8 +388,8 @@ void render(void) {
     draw_buttons();
     draw_tetrimino();
 
-    sprintf(score_buffer, "Score: %ld", score);
-    sprintf(time_buffer, "Time: %lds", time / 10);
+    sprintf(score_buffer, "Score: %ld, Level: %ld", score, level);
+    sprintf(time_buffer, "Time: %lds", time / TIME_DIV);
     UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_BLACK);
     UTIL_LCD_DisplayStringAt(4, 10, (uint8_t*)time_buffer, LEFT_MODE);
     UTIL_LCD_DisplayStringAt(0, 10, (uint8_t*)score_buffer, RIGHT_MODE);
@@ -391,8 +401,8 @@ void render(void) {
 /// </summary>
 /// <param name=""></param>
 void reset_game(void) {
-    UTIL_LCD_SetFont(&Font12);
     level = MIN_LEVEL;
+    lines_cleared = 0;
     score = 0;
     time = 0;
     playing = true;

@@ -33,9 +33,10 @@
 #define X_BTN_PADDING 10
 #define Y_BTN_PADDING 10
 #define N_BTN 6
-#define MAX_LEVEL 9
-#define MIN_LEVEL 0
-#define LEVEL_THRESH 1000
+#define MAX_LEVEL 19
+#define MIN_LEVEL 1
+#define LEVEL_THRESH 10
+#define TIME_DIV 100
 
 #define X_START ((LCD_DEFAULT_WIDTH / 2) - ((X_DIM / 2) * X_BOX))
 #define Y_START (LCD_DEFAULT_HEIGHT - Y_BOX * 2)
