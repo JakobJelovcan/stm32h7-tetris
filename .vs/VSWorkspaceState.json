@@ -9,10 +9,13 @@
   },
   "ExpandedNodes": [
     "",
+    "\\cmake",
+    "\\Core",
     "\\Core\\Inc",
     "\\Core\\Src",
-    "\\Utilities\\lcd"
+    "\\Drivers",
+    "\\Drivers\\STM32H7xx_HAL_Driver",
+    "\\Drivers\\STM32H7xx_HAL_Driver\\Inc"
   ],
-  "SelectedNode": "\\.cproject",
   "PreviewInSolutionExplorer": false
 }

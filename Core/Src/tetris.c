@@ -56,7 +56,7 @@ bool game_over = false;
 /// <returns></returns>
 static int8_t get_new_x_position(uint8_t type) {
     static uint16_t masks[] = { 0x8888, 0x4444, 0x2222, 0x1111 };
-    static unsigned int seed;
+    uint32_t x;
 
     uint8_t min = 4, max = 0;
     const uint16_t tetrimino = tetriminos[type][0];
@@ -66,8 +66,8 @@ static int8_t get_new_x_position(uint8_t type) {
             max = MAX(max, i);
         }
     }
-
-    return min + rand_r(&seed) % (X_DIM - max - min);
+    HAL_RNG_GenerateRandomNumber(&rng, &x);
+    return min + x % (X_DIM - max - min);
 }
 
 /// <summary>
