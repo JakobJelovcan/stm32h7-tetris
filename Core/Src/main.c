@@ -67,6 +67,7 @@ static void TS_Config(void);
 static void TIM_Config(void);
 static void BTN_Config(void);
 static void RNG_Config(void);
+static void MMC_Config(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -101,6 +102,7 @@ int main(void) {
     LCD_Config();
     TIM_Config();
     BTN_Config();
+    MMC_Config();
     /* USER CODE END SysInit */
 
     /* Initialize all configured peripherals */
@@ -165,7 +167,6 @@ int main(void) {
 void SystemClock_Config(void) {
     RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
     RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
-    HAL_StatusTypeDef ret = HAL_OK;
 
     /*!< Supply configuration update enable */
     HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
@@ -287,6 +288,10 @@ static void RNG_Config(void) {
     }
 }
 
+static void MMC_Config(void) {
+    int32_t mmc_state = BSP_MMC_Init(0);
+}
+
 void HAL_LTDC_ReloadEventCallback(LTDC_HandleTypeDef* hltdc) {
     static uint16_t buffer_index = 0;
 
@@ -314,6 +319,7 @@ void StartLcdTask(void* argument) {
         while (osMessageQueueGet(actionQueue, &action, 0U, 0U) == osOK) {
             perform_action(action);
         }
+        update_state();
         clear_lines();
         render();
         BSP_LCD_Reload(0, BSP_LCD_RELOAD_VERTICAL_BLANKING);

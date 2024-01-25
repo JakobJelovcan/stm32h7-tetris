@@ -25,6 +25,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "cmsis_os2.h"
+#include "tetris.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -179,9 +180,8 @@ void LTDC_IRQHandler(void) {
 }
 
 void TIM2_IRQHandler(void) {
-    static const action_t tick = TICK;
     if (__HAL_TIM_GET_FLAG(&tim2, TIM_FLAG_UPDATE)) {
-        osMessageQueuePut(actionQueue, &tick, 1U, 0U);
+        tick();
         __HAL_TIM_CLEAR_FLAG(&tim2, TIM_FLAG_UPDATE);
     }
     HAL_NVIC_ClearPendingIRQ(TIM2_IRQn);

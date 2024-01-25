@@ -20,10 +20,6 @@
 #error MAX redefinition
 #endif // !MAX
 
-#define X_BANNER_DIM LCD_DEFAULT_WIDTH
-#define Y_BANNER_DIM 60
-#define X_BANNER_START 0
-#define Y_BANNER_START (LCD_DEFAULT_WIDTH / 2 - Y_BANNER_DIM / 2)
 #define X_DIM 10
 #define Y_DIM 20
 #define X_BOX 12
@@ -37,6 +33,11 @@
 #define MIN_LEVEL 1
 #define LEVEL_THRESH 10
 #define TIME_DIV 100
+#define N_TOP_SCORES 3
+#define X_BANNER_DIM (LCD_DEFAULT_WIDTH - (X_BTN_PADDING * 4 + X_BTN * 2))
+#define Y_BANNER_DIM 120
+#define X_BANNER_START (LCD_DEFAULT_WIDTH / 2 - X_BANNER_DIM / 2)
+#define Y_BANNER_START (LCD_DEFAULT_HEIGHT / 2 - Y_BANNER_DIM / 2)
 
 #define X_START ((LCD_DEFAULT_WIDTH / 2) - ((X_DIM / 2) * X_BOX))
 #define Y_START (LCD_DEFAULT_HEIGHT - Y_BOX * 2)
@@ -46,6 +47,7 @@
 #include "polygons.h"
 #include "stm32_lcd.h"
 #include "stm32h750b_discovery_lcd.h"
+#include "stm32h750b_discovery_mmc.h"
 #include <stdbool.h>
 #include <inttypes.h>
 #include <string.h>
@@ -59,7 +61,6 @@ typedef enum {
     ROTATE_RIGHT,
     DROP,
     RESET_GAME,
-    TICK,
     PLAY_PAUSE
 } action_t;
 
@@ -88,7 +89,8 @@ void clear_lines(void);
 void perform_action(const action_t action);
 void render(void);
 void reset_game(void);
-bool get_game_over(void);
+void update_state(void);
+void tick(void);
 
 extern button_t buttons[N_BTN];
 

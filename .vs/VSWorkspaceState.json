@@ -11,11 +11,9 @@
     "",
     "\\cmake",
     "\\Core",
-    "\\Core\\Inc",
     "\\Core\\Src",
-    "\\Drivers",
-    "\\Drivers\\STM32H7xx_HAL_Driver",
-    "\\Drivers\\STM32H7xx_HAL_Driver\\Inc"
+    "\\Drivers"
   ],
+  "SelectedNode": "\\cmake\\st-project.cmake",
   "PreviewInSolutionExplorer": false
 }

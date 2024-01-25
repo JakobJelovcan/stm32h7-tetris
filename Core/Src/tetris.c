@@ -39,15 +39,63 @@ button_t buttons[N_BTN] = {
 
 const uint8_t level_speed[] = { 72, 64, 58, 50, 44, 36, 30, 22, 14, 10, 8, 8, 8, 6, 6, 6, 4, 4, 4, 2 };
 const uint16_t lines_score[] = { 0, 100, 300, 500, 800 };
+uint32_t top_scores[N_TOP_SCORES];
 
 uint8_t playing_field[Y_DIM][X_DIM];
 tetrimino_t tetrimino = { 0 };
 uint32_t lines_cleared = 0;
 uint32_t score = 0;
 uint32_t time = 0;
+uint32_t last_update = 0;
 uint32_t level = 1;
 bool playing = false;
 bool game_over = false;
+
+/// <summary>
+/// Loads the top scores from the EMMC flash
+/// </summary>
+/// <param name=""></param>
+static void load_top_scores(void) {
+    static uint8_t buf[MMC_BLOCKSIZE];
+    BSP_MMC_ReadBlocks(0, (uint32_t*)buf, 0, 1);
+    while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
+    memcpy(top_scores, buf, sizeof(uint32_t) * 3);
+}
+
+/// <summary>
+/// Stores the top scores to the EMMC flash
+/// </summary>
+/// <param name=""></param>
+static void store_top_scores(void) {
+    static uint8_t buf[MMC_BLOCKSIZE];
+    memcpy(buf, top_scores, sizeof(uint32_t) * 3);
+    BSP_MMC_WriteBlocks(0, (uint32_t*)buf, 0, 1);
+    while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
+}
+
+/// <summary>
+/// Update top scores
+/// </summary>
+/// <param name=""></param>
+static void finish_game(void) {
+    if (!game_over) {
+        game_over = true;
+        size_t i = 0;
+        for (; i < N_TOP_SCORES; ++i) {
+            if (score > top_scores[i]) {
+                break;
+            }
+        }
+
+        if (i < N_TOP_SCORES) {
+            for (size_t j = N_TOP_SCORES - 1; j > i; --j) {
+                top_scores[j] = top_scores[j - 1];
+            }
+            top_scores[i] = score;
+            store_top_scores();
+        }
+    }
+}
 
 /// <summary>
 /// Gets the x position for the new tetrimino
@@ -92,7 +140,7 @@ static int8_t get_new_y_position(uint8_t type) {
 /// Creates a new tetrimino and stores in the location provided by the argument
 /// </summary>
 /// <param name="tetrimino"></param>
-static void create_tetrimino(tetrimino_t *tetrimino) {
+static void create_tetrimino(tetrimino_t* tetrimino) {
     uint32_t type;
     HAL_RNG_GenerateRandomNumber(&rng, &type);
     tetrimino->dir = 0;
@@ -111,6 +159,28 @@ static void draw_game_over(void) {
         UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_DARKGRAY);
         UTIL_LCD_FillRect(X_BANNER_START, Y_BANNER_START, X_BANNER_DIM, Y_BANNER_DIM, UTIL_LCD_COLOR_DARKGRAY);
         UTIL_LCD_DisplayStringAt(0, Y_BANNER_START + Y_BANNER_DIM / 2, (uint8_t*)"Game over", CENTER_MODE);
+        UTIL_LCD_SetFont(&Font12);
+    }
+}
+
+/// <summary>
+/// Draws a banner displaying top 3 scores
+/// </summary>
+/// <param name=""></param>
+static void draw_scores(void) {
+    static char buf[32];
+    if (!game_over && !playing) {
+        UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_DARKGRAY);
+        UTIL_LCD_FillRect(X_BANNER_START, Y_BANNER_START, X_BANNER_DIM, Y_BANNER_DIM, UTIL_LCD_COLOR_DARKGRAY);
+
+        UTIL_LCD_SetFont(&Font20);
+        UTIL_LCD_DisplayStringAt(0, Y_BANNER_START + 10, (uint8_t*)"Top scores", CENTER_MODE);
+
+        UTIL_LCD_SetFont(&Font16);
+        for (size_t i = 0; i < N_TOP_SCORES; ++i) {
+            sprintf(buf, "%d: %d", i + 1, top_scores[i]);
+            UTIL_LCD_DisplayStringAt(0, Y_BANNER_START + 40 + 16 * i, (uint8_t*)buf, CENTER_MODE);
+        }
         UTIL_LCD_SetFont(&Font12);
     }
 }
@@ -264,8 +334,9 @@ static void place_on_playing_field(uint8_t type, uint8_t dir, int8_t x, int8_t y
             if ((mask & tetrimino) != 0) {
                 if (x + j >= 0 && x + j < X_DIM && y + i >= 0 && y + i < Y_DIM) {
                     playing_field[y + i][x + j] = type;
-                } else {
-                    game_over = true;
+                }
+                else {
+                    finish_game();
                 }
             }
             mask <<= 1;
@@ -294,7 +365,8 @@ void clear_lines(void) {
         if (!full[i]) {
             if (i != y) {
                 memmove(playing_field[y++], playing_field[i], X_DIM * sizeof(uint8_t));
-            } else {
+            }
+            else {
                 ++y;
             }
         }
@@ -311,7 +383,8 @@ void clear_lines(void) {
         if (full[i]) {
             ++count;
             ++lines_cleared;
-        } else {
+        }
+        else {
             score += (level + 1) * lines_score[count];
             count = 0;
         }
@@ -325,10 +398,13 @@ void clear_lines(void) {
 /// <param name="action">to be performed</param>
 void perform_action(const action_t action) {
     if (action == RESET_GAME) {
+        finish_game();
         reset_game();
-    } else if (action == PLAY_PAUSE) {
+    }
+    else if (action == PLAY_PAUSE) {
         playing = !playing;
-    } else if (!game_over && playing) {
+    }
+    else if (!game_over && playing) {
         switch (action) {
             case MOVE_LEFT: {
                 if (valid(tetrimino.type, tetrimino.dir, tetrimino.x - 1, tetrimino.y)) {
@@ -359,17 +435,24 @@ void perform_action(const action_t action) {
                 create_tetrimino(&tetrimino);
                 break;
             }
-            case TICK: {
-                ++time;
-                if ((time % level_speed[level]) == 0) {
-                    if (valid(tetrimino.type, tetrimino.dir, tetrimino.x, tetrimino.y - 1)) {
-                        --tetrimino.y;
-                    } else {
-                        place_on_playing_field(tetrimino.type, tetrimino.dir, tetrimino.x, tetrimino.y);
-                        create_tetrimino(&tetrimino);
-                    }
-                }
-                break;
+        }
+    }
+}
+
+/// <summary>
+/// Updates the state of the game by moving the current tetrimino down by one block and checking if the game is still in a valid state
+/// </summary>
+/// <param name=""></param>
+void update_state(void) {
+    if (!game_over && playing) {
+        if (time - last_update > level_speed[level]) {
+            last_update = time;
+            if (valid(tetrimino.type, tetrimino.dir, tetrimino.x, tetrimino.y - 1)) {
+                --tetrimino.y;
+            }
+            else {
+                place_on_playing_field(tetrimino.type, tetrimino.dir, tetrimino.x, tetrimino.y);
+                create_tetrimino(&tetrimino);
             }
         }
     }
@@ -394,6 +477,7 @@ void render(void) {
     UTIL_LCD_DisplayStringAt(4, 10, (uint8_t*)time_buffer, LEFT_MODE);
     UTIL_LCD_DisplayStringAt(0, 10, (uint8_t*)score_buffer, RIGHT_MODE);
     draw_game_over();
+    draw_scores();
 }
 
 /// <summary>
@@ -405,9 +489,11 @@ void reset_game(void) {
     lines_cleared = 0;
     score = 0;
     time = 0;
+    last_update = 0;
     playing = true;
     game_over = false;
     create_tetrimino(&tetrimino);
+    load_top_scores();
 
     //Clear playing field
     for (size_t i = 0; i < Y_DIM; ++i) {
@@ -415,17 +501,12 @@ void reset_game(void) {
     }
 }
 
-void tick(void) {
-    if (playing && !game_over) {
-        ++time;
-    }
-}
-
 /// <summary>
-/// Gets the status of the game
+/// Increase time by one unit
 /// </summary>
 /// <param name=""></param>
-/// <returns>game status</returns>
-bool get_game_over(void) {
-    return game_over;
+void tick(void) {
+    if (!game_over && playing) {
+        ++time;
+    }
 }
