@@ -39,15 +39,16 @@ button_t buttons[N_BTN] = {
 
 const uint8_t level_speed[] = { 72, 64, 58, 50, 44, 36, 30, 22, 14, 10, 8, 8, 8, 6, 6, 6, 4, 4, 4, 2 };
 const uint16_t lines_score[] = { 0, 100, 300, 500, 800 };
-uint32_t top_scores[N_TOP_SCORES];
+uint32_t top_scores[MMC_BLOCKSIZE / sizeof(uint32_t)];
 
 uint8_t playing_field[Y_DIM][X_DIM];
 tetrimino_t tetrimino = { 0 };
-uint32_t lines_cleared = 0;
-uint32_t score = 0;
 uint32_t time = 0;
-uint32_t last_update = 0;
 uint32_t level = 1;
+uint32_t score = 0;
+uint32_t last_update = 0;
+uint32_t lines_cleared = 0;
+
 bool playing = false;
 bool game_over = false;
 
@@ -56,10 +57,8 @@ bool game_over = false;
 /// </summary>
 /// <param name=""></param>
 static void load_top_scores(void) {
-    static uint8_t buf[MMC_BLOCKSIZE];
-    BSP_MMC_ReadBlocks(0, (uint32_t*)buf, 0, 1);
+    BSP_MMC_ReadBlocks(0, top_scores, EMMC_START_ADDR, EMMC_BLOCK_COUNT);
     while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
-    memcpy(top_scores, buf, sizeof(uint32_t) * 3);
 }
 
 /// <summary>
@@ -67,30 +66,26 @@ static void load_top_scores(void) {
 /// </summary>
 /// <param name=""></param>
 static void store_top_scores(void) {
-    static uint8_t buf[MMC_BLOCKSIZE];
-    memcpy(buf, top_scores, sizeof(uint32_t) * 3);
-    BSP_MMC_WriteBlocks(0, (uint32_t*)buf, 0, 1);
+    BSP_MMC_WriteBlocks(0, top_scores, EMMC_START_ADDR, EMMC_BLOCK_COUNT);
     while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
 }
 
 /// <summary>
-/// Update top scores
+/// Update top scores and set game_over to true
 /// </summary>
 /// <param name=""></param>
 static void finish_game(void) {
     if (!game_over) {
         game_over = true;
+
         size_t i = 0;
-        for (; i < N_TOP_SCORES; ++i) {
-            if (score > top_scores[i]) {
-                break;
-            }
+        for (; i < N_TOP_SCORES && score < top_scores[i]; ++i);
+
+        for (size_t j = N_TOP_SCORES - 1; j > i; --j) {
+            top_scores[j] = top_scores[j - 1];
         }
 
         if (i < N_TOP_SCORES) {
-            for (size_t j = N_TOP_SCORES - 1; j > i; --j) {
-                top_scores[j] = top_scores[j - 1];
-            }
             top_scores[i] = score;
             store_top_scores();
         }
@@ -494,11 +489,7 @@ void reset_game(void) {
     game_over = false;
     create_tetrimino(&tetrimino);
     load_top_scores();
-
-    //Clear playing field
-    for (size_t i = 0; i < Y_DIM; ++i) {
-        memset(playing_field[i], 0, X_DIM * sizeof(uint8_t));
-    }
+    memset(playing_field, 0, X_DIM * Y_DIM * sizeof(uint8_t));
 }
 
 /// <summary>
