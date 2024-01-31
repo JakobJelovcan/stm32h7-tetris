@@ -329,8 +329,7 @@ static void place_on_playing_field(uint8_t type, uint8_t dir, int8_t x, int8_t y
             if ((mask & tetrimino) != 0) {
                 if (x + j >= 0 && x + j < X_DIM && y + i >= 0 && y + i < Y_DIM) {
                     playing_field[y + i][x + j] = type;
-                }
-                else {
+                } else {
                     finish_game();
                 }
             }
@@ -360,8 +359,7 @@ void clear_lines(void) {
         if (!full[i]) {
             if (i != y) {
                 memmove(playing_field[y++], playing_field[i], X_DIM * sizeof(uint8_t));
-            }
-            else {
+            } else {
                 ++y;
             }
         }
@@ -378,8 +376,7 @@ void clear_lines(void) {
         if (full[i]) {
             ++count;
             ++lines_cleared;
-        }
-        else {
+        } else {
             score += (level + 1) * lines_score[count];
             count = 0;
         }
@@ -395,11 +392,9 @@ void perform_action(const action_t action) {
     if (action == RESET_GAME) {
         finish_game();
         reset_game();
-    }
-    else if (action == PLAY_PAUSE) {
+    } else if (action == PLAY_PAUSE) {
         playing = !playing;
-    }
-    else if (!game_over && playing) {
+    } else if (!game_over && playing) {
         switch (action) {
             case MOVE_LEFT: {
                 if (valid(tetrimino.type, tetrimino.dir, tetrimino.x - 1, tetrimino.y)) {
@@ -444,8 +439,7 @@ void update_state(void) {
             last_update = time;
             if (valid(tetrimino.type, tetrimino.dir, tetrimino.x, tetrimino.y - 1)) {
                 --tetrimino.y;
-            }
-            else {
+            } else {
                 place_on_playing_field(tetrimino.type, tetrimino.dir, tetrimino.x, tetrimino.y);
                 create_tetrimino(&tetrimino);
             }
