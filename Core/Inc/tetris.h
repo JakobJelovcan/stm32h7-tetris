@@ -30,7 +30,7 @@
 #define Y_BTN_PADDING 10
 #define N_BTN 6
 #define MAX_LEVEL 19
-#define MIN_LEVEL 1
+#define MIN_LEVEL 0
 #define LEVEL_THRESH 10
 #define TIME_DIV 100
 #define N_TOP_SCORES 3

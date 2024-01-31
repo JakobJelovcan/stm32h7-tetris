@@ -11,9 +11,14 @@
     "",
     "\\cmake",
     "\\Core",
+    "\\Core\\Inc",
     "\\Core\\Src",
-    "\\Drivers"
+    "\\Drivers",
+    "\\Drivers\\BSP",
+    "\\Drivers\\BSP\\STM32H750B-DK",
+    "\\Utilities",
+    "\\Utilities\\lcd"
   ],
-  "SelectedNode": "\\cmake\\st-project.cmake",
+  "SelectedNode": "\\CMakeLists.txt",
   "PreviewInSolutionExplorer": false
 }

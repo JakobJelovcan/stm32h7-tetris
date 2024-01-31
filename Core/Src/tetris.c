@@ -44,7 +44,7 @@ uint32_t top_scores[MMC_BLOCKSIZE / sizeof(uint32_t)];
 uint8_t playing_field[Y_DIM][X_DIM];
 tetrimino_t tetrimino = { 0 };
 uint32_t time = 0;
-uint32_t level = 1;
+uint32_t level = MIN_LEVEL;
 uint32_t score = 0;
 uint32_t last_update = 0;
 uint32_t lines_cleared = 0;
@@ -377,7 +377,7 @@ void clear_lines(void) {
             ++count;
             ++lines_cleared;
         } else {
-            score += (level + 1) * lines_score[count];
+            score += level * lines_score[count];
             count = 0;
         }
     }
@@ -435,7 +435,7 @@ void perform_action(const action_t action) {
 /// <param name=""></param>
 void update_state(void) {
     if (!game_over && playing) {
-        if (time - last_update > level_speed[level]) {
+        if (time - last_update >= level_speed[level]) {
             last_update = time;
             if (valid(tetrimino.type, tetrimino.dir, tetrimino.x, tetrimino.y - 1)) {
                 --tetrimino.y;
