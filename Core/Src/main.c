@@ -361,7 +361,7 @@ void StartInputTask(void* argument) {
                 osMessageQueuePut(actionQueue, &buttons[i].action, 2U, 0U);
             }
         }
-        osDelay(20);
+        osDelay(10);
     }
     /* USER CODE END StartInputTask */
 }
