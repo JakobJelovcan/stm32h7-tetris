@@ -213,3 +213,5 @@ pip-log.txt
 .mr.developer.cfg
 .vs/cmake.db
 .vs/slnx.sqlite
+/.vs/slnx.sqlite
+/.vs/VSWorkspaceState.json
