@@ -42,12 +42,12 @@ const uint16_t lines_score[] = { 0, 100, 300, 500, 800 };
 uint32_t top_scores[MMC_BLOCKSIZE / sizeof(uint32_t)];
 
 uint8_t playing_field[Y_DIM][X_DIM];
-tetrimino_t tetrimino = { 0 };
-uint32_t time = 0;
-uint32_t level = MIN_LEVEL;
-uint32_t score = 0;
-uint32_t last_update = 0;
-uint32_t lines_cleared = 0;
+tetrimino_t tetrimino;
+uint32_t time;
+uint32_t level;
+uint32_t score;
+uint32_t last_update;
+uint32_t lines_cleared;
 
 bool playing = false;
 bool game_over = false;
@@ -77,6 +77,7 @@ static void store_top_scores(void) {
 static void finish_game(void) {
     if (!game_over) {
         game_over = true;
+        playing = false;
 
         size_t i = 0;
         for (; i < N_TOP_SCORES && score < top_scores[i]; ++i);
@@ -377,7 +378,7 @@ void clear_lines(void) {
             ++count;
             ++lines_cleared;
         } else {
-            score += level * lines_score[count];
+            score += (level + 1) * lines_score[count];
             count = 0;
         }
     }
@@ -452,19 +453,19 @@ void update_state(void) {
 /// </summary>
 /// <param name=""></param>
 void render(void) {
-    static char score_buffer[32];
-    static char time_buffer[32];
+    static char str_buffer[32];
 
     draw_border();
     draw_playing_field();
     draw_buttons();
     draw_tetrimino();
 
-    sprintf(score_buffer, "Score: %ld, Level: %ld", score, level);
-    sprintf(time_buffer, "Time: %lds", time / TIME_DIV);
     UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_BLACK);
-    UTIL_LCD_DisplayStringAt(4, 10, (uint8_t*)time_buffer, LEFT_MODE);
-    UTIL_LCD_DisplayStringAt(0, 10, (uint8_t*)score_buffer, RIGHT_MODE);
+    sprintf(str_buffer, "Time: %lds", time / TIME_DIV);
+    UTIL_LCD_DisplayStringAt(4, 10, (uint8_t*)str_buffer, LEFT_MODE);
+    sprintf(str_buffer, "Score: %ld, Level: %ld", score, level);
+    UTIL_LCD_DisplayStringAt(0, 10, (uint8_t*)str_buffer, RIGHT_MODE);
+
     draw_game_over();
     draw_scores();
 }
@@ -474,7 +475,7 @@ void render(void) {
 /// </summary>
 /// <param name=""></param>
 void reset_game(void) {
-    level = MIN_LEVEL;
+    level = 0;
     lines_cleared = 0;
     score = 0;
     time = 0;
