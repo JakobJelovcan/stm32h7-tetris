@@ -34,6 +34,7 @@
 #define TIME_DIV 100
 #define N_TOP_SCORES 3
 #define EMMC_START_ADDR 0
+#define EMMC_GAME_OFFSET 1
 #define EMMC_BLOCK_COUNT 1
 #define X_BANNER_DIM (LCD_DEFAULT_WIDTH - (X_BTN_PADDING * 4 + X_BTN * 2))
 #define Y_BANNER_DIM 120
@@ -86,12 +87,25 @@ typedef struct {
     polygon_t polygon;
 } button_t;
 
+typedef struct {
+    uint8_t playing_field[Y_DIM][X_DIM];
+    tetrimino_t tetrimino;
+    uint32_t time;
+    uint32_t level;
+    uint32_t score;
+    uint32_t last_update;
+    uint32_t lines_cleared;
+    bool playing;
+    bool game_over;
+} game_t;
+
 void clear_lines(void);
 void perform_action(const action_t action);
 void render(void);
 void reset_game(void);
 void update_state(void);
 void tick(void);
+void load_game(void);
 
 extern button_t buttons[N_BTN];
 

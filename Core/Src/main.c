@@ -144,6 +144,7 @@ int main(void) {
     /* add events, ... */
     HAL_TIM_Base_Start_IT(&tim2);
     reset_game();
+    load_game();
     /* USER CODE END RTOS_EVENTS */
 
     /* Start scheduler */
@@ -356,7 +357,7 @@ void StartInputTask(void* argument) {
         }
         //Update actions
         for (size_t i = 0; i < N_BTN; ++i) {
-            if ((buttons[i].state & 0xf) == 0x3) {
+            if ((buttons[i].state & 0b1111) == 0b0011) {
                 buttons[i].polygon.selected = 1 - buttons[i].polygon.selected;
                 osMessageQueuePut(actionQueue, &buttons[i].action, 2U, 0U);
             }

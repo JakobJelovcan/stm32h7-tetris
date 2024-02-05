@@ -41,16 +41,34 @@ const uint8_t level_speed[] = { 72, 64, 58, 50, 44, 36, 30, 22, 14, 10, 8, 8, 8,
 const uint16_t lines_score[] = { 0, 100, 300, 500, 800 };
 uint32_t top_scores[MMC_BLOCKSIZE / sizeof(uint32_t)];
 
-uint8_t playing_field[Y_DIM][X_DIM];
-tetrimino_t tetrimino;
-uint32_t time;
-uint32_t level;
-uint32_t score;
-uint32_t last_update;
-uint32_t lines_cleared;
+game_t game;
+uint32_t last_save;
+bool save_after_reset;
 
-bool playing = false;
-bool game_over = false;
+/// <summary>
+/// Stores the game to the eMMC memory
+/// </summary>
+/// <param name=""></param>
+static void store_game(void) {
+    static uint32_t buf[MMC_BLOCKSIZE / sizeof(uint32_t)];
+    memcpy(buf, &game, sizeof(game_t));
+    BSP_MMC_WriteBlocks(0, buf, EMMC_START_ADDR + EMMC_GAME_OFFSET, EMMC_BLOCK_COUNT);
+    while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
+}
+
+/// <summary>
+/// Loads the game from the eMMC memory
+/// </summary>
+/// <param name=""></param>
+void load_game(void) {
+    static uint32_t buf[MMC_BLOCKSIZE / sizeof(uint32_t)];
+    BSP_MMC_ReadBlocks(0, buf, EMMC_START_ADDR + EMMC_GAME_OFFSET, EMMC_BLOCK_COUNT);
+    while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
+    memcpy(&game, buf, sizeof(game_t));
+
+    // Start the game
+    game.playing = !game.game_over;
+}
 
 /// <summary>
 /// Loads the top scores from the EMMC flash
@@ -75,19 +93,19 @@ static void store_top_scores(void) {
 /// </summary>
 /// <param name=""></param>
 static void finish_game(void) {
-    if (!game_over) {
-        game_over = true;
-        playing = false;
+    if (!game.game_over) {
+        game.game_over = true;
+        game.playing = false;
 
         size_t i = 0;
-        for (; i < N_TOP_SCORES && score < top_scores[i]; ++i);
+        for (; i < N_TOP_SCORES && game.score < top_scores[i]; ++i);
 
         for (size_t j = N_TOP_SCORES - 1; j > i; --j) {
             top_scores[j] = top_scores[j - 1];
         }
 
         if (i < N_TOP_SCORES) {
-            top_scores[i] = score;
+            top_scores[i] = game.score;
             store_top_scores();
         }
     }
@@ -150,7 +168,7 @@ static void create_tetrimino(tetrimino_t* tetrimino) {
 /// </summary>
 /// <param name=""></param>
 static void draw_game_over(void) {
-    if (game_over) {
+    if (game.game_over) {
         UTIL_LCD_SetFont(&UTIL_LCD_DEFAULT_FONT);
         UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_DARKGRAY);
         UTIL_LCD_FillRect(X_BANNER_START, Y_BANNER_START, X_BANNER_DIM, Y_BANNER_DIM, UTIL_LCD_COLOR_DARKGRAY);
@@ -165,7 +183,7 @@ static void draw_game_over(void) {
 /// <param name=""></param>
 static void draw_scores(void) {
     static char buf[32];
-    if (!game_over && !playing) {
+    if (!game.game_over && !game.playing) {
         UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_DARKGRAY);
         UTIL_LCD_FillRect(X_BANNER_START, Y_BANNER_START, X_BANNER_DIM, Y_BANNER_DIM, UTIL_LCD_COLOR_DARKGRAY);
 
@@ -197,12 +215,12 @@ static void draw_box(uint16_t x, uint16_t y, uint8_t color) {
 /// </summary>
 /// <param name=""></param>
 static void draw_tetrimino(void) {
-    if (tetrimino.type != 0) {
-        const uint16_t shape = tetriminos[tetrimino.type][tetrimino.dir];
+    if (game.tetrimino.type != 0) {
+        const uint16_t shape = tetriminos[game.tetrimino.type][game.tetrimino.dir];
         for (size_t i = 0; i < 4; ++i) {
             for (size_t j = 0; j < 4; ++j) {
                 if (shape & 1 << (j + i * 4)) {
-                    draw_box(X_START + (tetrimino.x + 3 - j) * X_BOX, Y_START - (tetrimino.y + i) * Y_BOX, tetrimino.type);
+                    draw_box(X_START + (game.tetrimino.x + 3 - j) * X_BOX, Y_START - (game.tetrimino.y + i) * Y_BOX, game.tetrimino.type);
                 }
             }
         }
@@ -216,8 +234,8 @@ static void draw_tetrimino(void) {
 static void draw_playing_field(void) {
     for (size_t i = 0; i < Y_DIM; ++i) {
         for (size_t j = 0; j < X_DIM; ++j) {
-            if (playing_field[i][j] != 0) {
-                draw_box(X_START + j * X_BOX, Y_START - i * Y_BOX, playing_field[i][j]);
+            if (game.playing_field[i][j] != 0) {
+                draw_box(X_START + j * X_BOX, Y_START - i * Y_BOX, game.playing_field[i][j]);
             }
         }
     }
@@ -290,7 +308,7 @@ static uint16_t overlap_mask(int8_t x, int8_t y) {
     uint16_t mask = 0;
     for (int32_t i = 3; i >= 0; --i) {
         for (int32_t j = 0; j < 4; ++j) {
-            mask = (mask << 1) | ((x + j < 0) || (y + i < 0) || (x + j >= X_DIM) || ((y + i < Y_DIM) && (playing_field[y + i][x + j] != 0)));
+            mask = (mask << 1) | ((x + j < 0) || (y + i < 0) || (x + j >= X_DIM) || ((y + i < Y_DIM) && (game.playing_field[y + i][x + j] != 0)));
         }
     }
     return mask;
@@ -322,14 +340,14 @@ static void place_on_playing_field(uint8_t type, uint8_t dir, int8_t x, int8_t y
         ++drop_count;
     }
 
-    score += 2 * drop_count;
+    game.score += 2 * drop_count;
     const uint16_t tetrimino = tetriminos[type][dir];
     uint16_t mask = 1;
     for (int32_t i = 0; i < 4; ++i) {
         for (int32_t j = 3; j >= 0; --j) {
             if ((mask & tetrimino) != 0) {
                 if (x + j >= 0 && x + j < X_DIM && y + i >= 0 && y + i < Y_DIM) {
-                    playing_field[y + i][x + j] = type;
+                    game.playing_field[y + i][x + j] = type;
                 } else {
                     finish_game();
                 }
@@ -350,7 +368,7 @@ void clear_lines(void) {
     for (size_t i = 0; i < Y_DIM; ++i) {
         full[i] = true;
         for (size_t j = 0; j < X_DIM; ++j) {
-            full[i] = full[i] && (playing_field[i][j] != 0);
+            full[i] = full[i] && (game.playing_field[i][j] != 0);
         }
     }
 
@@ -359,7 +377,7 @@ void clear_lines(void) {
     for (size_t i = 0; i < Y_DIM; ++i) {
         if (!full[i]) {
             if (i != y) {
-                memmove(playing_field[y++], playing_field[i], X_DIM * sizeof(uint8_t));
+                memmove(game.playing_field[y++], game.playing_field[i], X_DIM * sizeof(uint8_t));
             } else {
                 ++y;
             }
@@ -368,7 +386,7 @@ void clear_lines(void) {
 
     //Clear old lines
     for (size_t i = y; i < Y_DIM; ++i) {
-        memset(playing_field[i], 0, X_DIM * sizeof(uint8_t));
+        memset(game.playing_field[i], 0, X_DIM * sizeof(uint8_t));
     }
 
     //Calculate score
@@ -376,13 +394,16 @@ void clear_lines(void) {
     for (size_t i = 0; i < Y_DIM; ++i) {
         if (full[i]) {
             ++count;
-            ++lines_cleared;
+            ++game.lines_cleared;
         } else {
-            score += (level + 1) * lines_score[count];
+            game.score += (game.level + 1) * lines_score[count];
             count = 0;
         }
     }
-    level = MIN(lines_cleared / LEVEL_THRESH, MAX_LEVEL);
+    if (count > 0) {
+        game.score += (game.level + 1) * lines_score[count];
+    }
+    game.level = MIN(game.lines_cleared / LEVEL_THRESH, MAX_LEVEL);
 }
 
 /// <summary>
@@ -394,36 +415,36 @@ void perform_action(const action_t action) {
         finish_game();
         reset_game();
     } else if (action == PLAY_PAUSE) {
-        playing = !playing;
-    } else if (!game_over && playing) {
+        game.playing = !game.playing;
+    } else if (!game.game_over && game.playing) {
         switch (action) {
             case MOVE_LEFT: {
-                if (valid(tetrimino.type, tetrimino.dir, tetrimino.x - 1, tetrimino.y)) {
-                    --tetrimino.x;
+                if (valid(game.tetrimino.type, game.tetrimino.dir, game.tetrimino.x - 1, game.tetrimino.y)) {
+                    --game.tetrimino.x;
                 }
                 break;
             }
             case MOVE_RIGHT: {
-                if (valid(tetrimino.type, tetrimino.dir, tetrimino.x + 1, tetrimino.y)) {
-                    ++tetrimino.x;
+                if (valid(game.tetrimino.type, game.tetrimino.dir, game.tetrimino.x + 1, game.tetrimino.y)) {
+                    ++game.tetrimino.x;
                 }
                 break;
             }
             case ROTATE_LEFT: {
-                if (valid(tetrimino.type, (tetrimino.dir + 3) % 4, tetrimino.x, tetrimino.y)) {
-                    tetrimino.dir = (tetrimino.dir + 3) % 4;
+                if (valid(game.tetrimino.type, (game.tetrimino.dir + 3) % 4, game.tetrimino.x, game.tetrimino.y)) {
+                    game.tetrimino.dir = (game.tetrimino.dir + 3) % 4;
                 }
                 break;
             }
             case ROTATE_RIGHT: {
-                if (valid(tetrimino.type, (tetrimino.dir + 1) % 4, tetrimino.x, tetrimino.y)) {
-                    tetrimino.dir = (tetrimino.dir + 1) % 4;
+                if (valid(game.tetrimino.type, (game.tetrimino.dir + 1) % 4, game.tetrimino.x, game.tetrimino.y)) {
+                    game.tetrimino.dir = (game.tetrimino.dir + 1) % 4;
                 }
                 break;
             }
             case DROP: {
-                place_on_playing_field(tetrimino.type, tetrimino.dir, tetrimino.x, tetrimino.y);
-                create_tetrimino(&tetrimino);
+                place_on_playing_field(game.tetrimino.type, game.tetrimino.dir, game.tetrimino.x, game.tetrimino.y);
+                create_tetrimino(&game.tetrimino);
                 break;
             }
         }
@@ -435,16 +456,23 @@ void perform_action(const action_t action) {
 /// </summary>
 /// <param name=""></param>
 void update_state(void) {
-    if (!game_over && playing) {
-        if (time - last_update >= level_speed[level]) {
-            last_update = time;
-            if (valid(tetrimino.type, tetrimino.dir, tetrimino.x, tetrimino.y - 1)) {
-                --tetrimino.y;
+    if (!game.game_over && game.playing) {
+        if (game.time - game.last_update >= level_speed[game.level]) {
+            game.last_update = game.time;
+            if (valid(game.tetrimino.type, game.tetrimino.dir, game.tetrimino.x, game.tetrimino.y - 1)) {
+                --game.tetrimino.y;
             } else {
-                place_on_playing_field(tetrimino.type, tetrimino.dir, tetrimino.x, tetrimino.y);
-                create_tetrimino(&tetrimino);
+                place_on_playing_field(game.tetrimino.type, game.tetrimino.dir, game.tetrimino.x, game.tetrimino.y);
+                create_tetrimino(&game.tetrimino);
             }
         }
+    }
+
+    // Store the game every second
+    if (((game.time - last_save) / TIME_DIV) > 60) {
+        last_save = game.time;
+        save_after_reset = true;
+        store_game();
     }
 }
 
@@ -461,9 +489,9 @@ void render(void) {
     draw_tetrimino();
 
     UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_BLACK);
-    sprintf(str_buffer, "Time: %lds", time / TIME_DIV);
+    sprintf(str_buffer, "Time: %lds", game.time / TIME_DIV);
     UTIL_LCD_DisplayStringAt(4, 10, (uint8_t*)str_buffer, LEFT_MODE);
-    sprintf(str_buffer, "Score: %ld, Level: %ld", score, level);
+    sprintf(str_buffer, "Score: %ld, Level: %ld", game.score, game.level);
     UTIL_LCD_DisplayStringAt(0, 10, (uint8_t*)str_buffer, RIGHT_MODE);
 
     draw_game_over();
@@ -475,16 +503,23 @@ void render(void) {
 /// </summary>
 /// <param name=""></param>
 void reset_game(void) {
-    level = 0;
-    lines_cleared = 0;
-    score = 0;
-    time = 0;
-    last_update = 0;
-    playing = true;
-    game_over = false;
-    create_tetrimino(&tetrimino);
+    game.level = 0;
+    game.lines_cleared = 0;
+    game.score = 0;
+    game.time = 0;
+    game.last_update = 0;
+    game.playing = true;
+    game.game_over = false;
+
+    last_save = 0;
+    create_tetrimino(&game.tetrimino);
     load_top_scores();
-    memset(playing_field, 0, X_DIM * Y_DIM * sizeof(uint8_t));
+    memset(game.playing_field, 0, X_DIM * Y_DIM * sizeof(uint8_t));
+
+    if (save_after_reset) {
+        store_game();
+    }
+    save_after_reset = false;
 }
 
 /// <summary>
@@ -492,7 +527,7 @@ void reset_game(void) {
 /// </summary>
 /// <param name=""></param>
 void tick(void) {
-    if (!game_over && playing) {
-        ++time;
+    if (!game.game_over && game.playing) {
+        ++game.time;
     }
 }
