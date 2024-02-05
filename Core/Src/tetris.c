@@ -42,8 +42,8 @@ const uint16_t lines_score[] = { 0, 100, 300, 500, 800 };
 uint32_t top_scores[MMC_BLOCKSIZE / sizeof(uint32_t)];
 
 game_t game;
-uint32_t last_save;
-bool save_after_reset;
+uint32_t last_save;     // Time of the last save
+bool save_after_reset;  // Has the game been saved after the last reset
 
 /// <summary>
 /// Stores the game to the eMMC memory
@@ -51,8 +51,13 @@ bool save_after_reset;
 /// <param name=""></param>
 static void store_game(void) {
     static uint32_t buf[MMC_BLOCKSIZE / sizeof(uint32_t)];
+
+    // Copy the game data to a 512B buffer
+    // WriteBlocks function can only store blocks of size 512B
     memcpy(buf, &game, sizeof(game_t));
-    BSP_MMC_WriteBlocks(0, buf, EMMC_START_ADDR + EMMC_GAME_OFFSET, EMMC_BLOCK_COUNT);
+    BSP_MMC_WriteBlocks(0, buf, EMMC_GAME_ADDR, EMMC_BLOCK_COUNT);
+
+    // Wait for the operation to complete
     while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
 }
 
@@ -62,8 +67,14 @@ static void store_game(void) {
 /// <param name=""></param>
 void load_game(void) {
     static uint32_t buf[MMC_BLOCKSIZE / sizeof(uint32_t)];
-    BSP_MMC_ReadBlocks(0, buf, EMMC_START_ADDR + EMMC_GAME_OFFSET, EMMC_BLOCK_COUNT);
+
+    // ReadBlocks function can only read blocks of size 512B
+    BSP_MMC_ReadBlocks(0, buf, EMMC_GAME_ADDR, EMMC_BLOCK_COUNT);
+
+    // Wait for the operation to complete
     while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
+
+    // Copy the contents of the buffer to &game
     memcpy(&game, buf, sizeof(game_t));
 
     // Start the game
@@ -75,7 +86,7 @@ void load_game(void) {
 /// </summary>
 /// <param name=""></param>
 static void load_top_scores(void) {
-    BSP_MMC_ReadBlocks(0, top_scores, EMMC_START_ADDR, EMMC_BLOCK_COUNT);
+    BSP_MMC_ReadBlocks(0, top_scores, EMMC_SCORES_ADDR, EMMC_BLOCK_COUNT);
     while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
 }
 
@@ -84,7 +95,7 @@ static void load_top_scores(void) {
 /// </summary>
 /// <param name=""></param>
 static void store_top_scores(void) {
-    BSP_MMC_WriteBlocks(0, top_scores, EMMC_START_ADDR, EMMC_BLOCK_COUNT);
+    BSP_MMC_WriteBlocks(0, top_scores, EMMC_SCORES_ADDR, EMMC_BLOCK_COUNT);
     while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
 }
 
@@ -97,13 +108,18 @@ static void finish_game(void) {
         game.game_over = true;
         game.playing = false;
 
+        // Update scores
+
         size_t i = 0;
+        // Find the position of the new score
         for (; i < N_TOP_SCORES && game.score < top_scores[i]; ++i);
 
+        // Move old scores
         for (size_t j = N_TOP_SCORES - 1; j > i; --j) {
             top_scores[j] = top_scores[j - 1];
         }
 
+        // Insert the new score and store them (if necessary)
         if (i < N_TOP_SCORES) {
             top_scores[i] = game.score;
             store_top_scores();
@@ -514,8 +530,11 @@ void reset_game(void) {
     last_save = 0;
     create_tetrimino(&game.tetrimino);
     load_top_scores();
+
+    // Clear the playing field
     memset(game.playing_field, 0, X_DIM * Y_DIM * sizeof(uint8_t));
 
+    // Only save the new game if the game has not already been save after a reset
     if (save_after_reset) {
         store_game();
     }
@@ -527,6 +546,7 @@ void reset_game(void) {
 /// </summary>
 /// <param name=""></param>
 void tick(void) {
+    // Only increment the timer if the game is in a playing state
     if (!game.game_over && game.playing) {
         ++game.time;
     }
